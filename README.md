@@ -1,8 +1,3 @@
-# NeuralStorm
-Predict the unpredictable. Power through the storm.
-
----
-
 # ⚡ NeuralStorm
 
 > *Predict the unpredictable. Power through the storm.*
