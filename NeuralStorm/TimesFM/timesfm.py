@@ -721,7 +721,7 @@ class PatchedTimeSeriesDecoder(nn.Module):
         input_padding=input_padding,
     )
     f_emb = self.freq_emb(freq)  # B x 1 x D
-    model_input += f_emb
+    model_input += f_emb.unsqueeze(1) # BUG fix, brodcasting errors
     model_output = self.stacked_transformer(model_input, patched_padding)
 
     output_ts = self._postprocess_output(model_output, num_outputs, stats)
