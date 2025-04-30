@@ -12,8 +12,6 @@ setup(
     version="0.1.0",
     packages=find_packages(where="."),
     install_requires=[
-        "torch>=2.6.0",
-        "accelerate>=1.6.0", 
         "tqdm>=4.60.0",
     ],
     author="Mahdi Seddigh",
