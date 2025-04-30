@@ -238,8 +238,8 @@ class MultiChannelTimesFM(nn.Module):
                  processed_events = torch.nan_to_num(processed_events, nan=0.0, posinf=1e6, neginf=-1e6)
                  nan_detected = True
 
-        if nan_detected:
-            print("    --> NaNs/Infs were handled in auxiliary feature processing.")
+        #if nan_detected:
+         #   print("    --> NaNs/Infs were handled in auxiliary feature processing.")
 
         return processed_temporal, processed_events
 
