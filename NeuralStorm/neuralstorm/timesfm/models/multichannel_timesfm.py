@@ -239,7 +239,7 @@ class MultiChannelTimesFM(nn.Module):
                  nan_detected = True
 
         if nan_detected:
-            #print("    --> NaNs/Infs were handled in auxiliary feature processing.")
+            print("    --> NaNs/Infs were handled in auxiliary feature processing.")
 
         return processed_temporal, processed_events
 
