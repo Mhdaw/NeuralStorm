@@ -10,105 +10,62 @@ import matplotlib.pyplot as plt
 
 
 def calculate_standard_metrics(predictions, target, epsilon=1e-10):
-    if predictions.shape[-1] == 1: # Handle case where only mean is predicted
+    """Calculates standard time series metrics, returns tensors."""
+    if predictions.shape[-1] == 1:
         y_pred_point = predictions.squeeze(-1)
-    elif predictions.shape[-1] > 1: # mean/median is index 0
+    elif predictions.shape[-1] > 1:
         y_pred_point = predictions[..., 0]
     else:
          raise ValueError("Prediction tensor has unexpected shape.")
-
-    y_true = target.squeeze(-1) # Remove the last dimension if it's 1
-
-    # Ensure shapes match after squeezing
+    y_true = target.squeeze(-1)
     if y_pred_point.shape != y_true.shape:
-         raise ValueError(f"Shape mismatch after selecting point prediction: Pred {y_pred_point.shape}, Target {y_true.shape}")
+         raise ValueError(f"Shape mismatch: Pred {y_pred_point.shape}, Target {y_true.shape}")
 
     abs_error = torch.abs(y_true - y_pred_point)
     sq_error = abs_error ** 2
 
-    mae = torch.mean(abs_error)
-    mse = torch.mean(sq_error)
-    rmse = torch.sqrt(mse)
-    # Ensure y_true absolute value is used for MAPE denominator
-    mape = torch.mean(torch.div(abs_error, torch.abs(y_true) + epsilon)) * 100
+    # Calculate metrics as tensors (NO .item())
+    mae = torch.mean(abs_error).detach()
+    mse = torch.mean(sq_error).detach()
+    rmse = torch.sqrt(mse).detach()
+    mape = (torch.mean(torch.div(abs_error, torch.abs(y_true) + epsilon)) * 100).detach()
 
-    # Detach and move to CPU before .item()
-    return {
-        'mae': mae.detach().cpu().item(),
-        'mse': mse.detach().cpu().item(),
-        'rmse': rmse.detach().cpu().item(),
-        'mape': mape.detach().cpu().item()
-    }
+    # Return dictionary of tensors
+    return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape}
+
+
 def map_to_severity(values: torch.Tensor, boundaries: torch.Tensor) -> torch.Tensor:
-    """
-    Maps continuous values to discrete severity levels based on boundaries.
-
-    Args:
-        values (torch.Tensor): Tensor of continuous values (e.g., customers_out).
-                               Shape: (batch_size, horizon)
-        boundaries (torch.Tensor): 1D Tensor of upper boundaries for severity levels.
-                                   Must be sorted. (e.g., [10, 100, 1000])
-                                   Values < boundaries[0] -> level 0
-                                   boundaries[0] <= values < boundaries[1] -> level 1
-                                   ...
-                                   values >= boundaries[-1] -> level len(boundaries)
-
-    Returns:
-        torch.Tensor: Tensor of integer severity levels. Shape: (batch_size, horizon)
-    """
-
     boundaries = boundaries.to(values.device)
     severity_levels = torch.bucketize(values, boundaries, right=False)
-    return severity_levels.long() # Ensure integer type
+    return severity_levels.long()
 
 def calculate_severity_accuracy(predictions: torch.Tensor,
                                 target: torch.Tensor,
                                 boundaries: torch.Tensor,
                                 median_idx: int) -> dict:
-    """
-    Calculates point-wise severity accuracy per horizon step.
-
-    Args:
-        predictions (torch.Tensor): Model output tensor including mean and quantiles.
-                                    Shape: (batch_size, horizon, num_quantiles + 1)
-        target (torch.Tensor): Ground truth target values.
-                               Shape: (batch_size, horizon, 1)
-        boundaries (torch.Tensor): 1D Tensor of severity boundaries.
-        median_idx (int): Index of the median quantile in the prediction tensor (e.g., 5 if mean is index 0).
-
-    Returns:
-        dict: Contains 'overall_severity_accuracy' (scalar) and
-              'severity_accuracy_per_step' (Tensor, shape: (horizon,)).
-    """
+    """Calculates severity accuracy, returns tensors."""
     if predictions.shape[1] != target.shape[1]:
-         raise ValueError(f"Horizon dims must match between predictions ({predictions.shape[1]}) and target ({target.shape[1]})")
+        raise ValueError(f"Horizon dims mismatch: Pred {predictions.shape[1]}, Target {target.shape[1]}")
     if median_idx >= predictions.shape[2]:
-        raise ValueError(f"median_idx ({median_idx}) out of bounds for predictions last dim ({predictions.shape[2]})")
+        raise ValueError(f"median_idx ({median_idx}) out of bounds: {predictions.shape[2]}")
 
-    # Extract median prediction and target
-    y_pred_median = predictions[:, :, median_idx].detach() # Shape: (batch, horizon)
-    y_true = target.squeeze(-1).detach().float()          # Shape: (batch, horizon)
+    y_pred_median = predictions[:, :, median_idx].detach()
+    y_true = target.squeeze(-1).detach().float()
 
-    # Map to severity levels
-    pred_severity = map_to_severity(y_pred_median, boundaries) # (batch, horizon)
-    actual_severity = map_to_severity(y_true, boundaries)      # (batch, horizon)
+    pred_severity = map_to_severity(y_pred_median, boundaries)
+    actual_severity = map_to_severity(y_true, boundaries)
 
-    # Calculate correctness (element-wise comparison)
-    correct = (pred_severity == actual_severity).float() # (batch, horizon)
+    correct = (pred_severity == actual_severity).float()
 
-    # Calculate overall accuracy (mean over batch and horizon)
-    overall_accuracy = torch.mean(correct).item() * 100 # Percentage
-
-    # Calculate accuracy per horizon step (mean over batch dimension)
-    accuracy_per_step = torch.mean(correct, dim=0) * 100 # Percentage, Shape: (horizon,)
+    # Return overall accuracy as a tensor (NO .item())
+    overall_accuracy = (torch.mean(correct) * 100).detach()
+    # Keep accuracy_per_step as a tensor (already was)
+    accuracy_per_step = (torch.mean(correct, dim=0) * 100).detach()
 
     return {
-        'overall_severity_accuracy': overall_accuracy,
-        'severity_accuracy_per_step': accuracy_per_step,
-        #'pred_severity': pred_severity,
-        #'actual_severity': actual_severity
+        'overall_severity_accuracy': overall_accuracy, # tensor (scalar)
+        'severity_accuracy_per_step': accuracy_per_step # tensor (horizon,)
     }
-
 
 def plot_severity_accuracy(accuracy_per_step: torch.Tensor, save_path: str = None):
     """
