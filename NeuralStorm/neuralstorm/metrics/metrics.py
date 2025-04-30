@@ -10,32 +10,35 @@ import matplotlib.pyplot as plt
 
 
 def calculate_standard_metrics(predictions, target, epsilon=1e-10):
-    """Calculates standard time series metrics (MAE, MSE, RMSE, MAPE).
+    if predictions.shape[-1] == 1: # Handle case where only mean is predicted
+        y_pred_point = predictions.squeeze(-1)
+    elif predictions.shape[-1] > 1: # mean/median is index 0
+        y_pred_point = predictions[..., 0]
+    else:
+         raise ValueError("Prediction tensor has unexpected shape.")
 
-    Args:
-        predictions: Model predictions (batch_size, horizon, num_quantiles) or (batch_size, horizon, 1, num_quantiles).
-        target: Ground truth values (batch_size, horizon, 1) or (batch_size, horizon, 1, 1).
-        epsilon: Small value to avoid division by zero in MAPE calculation.
+    y_true = target.squeeze(-1) # Remove the last dimension if it's 1
 
-    Returns:
-        A dictionary containing MAE, MSE, RMSE, and MAPE.
-    """
-    # Remove dimensions of size 1 before calculating errors to prevent mismatches
-    y_true = target.squeeze()
-    y_pred_mean = predictions[:, :, 0]  # the mean is at index 0
+    # Ensure shapes match after squeezing
+    if y_pred_point.shape != y_true.shape:
+         raise ValueError(f"Shape mismatch after selecting point prediction: Pred {y_pred_point.shape}, Target {y_true.shape}")
 
-    # Calculate errors
-    abs_error = torch.abs(y_true - y_pred_mean)
+    abs_error = torch.abs(y_true - y_pred_point)
     sq_error = abs_error ** 2
 
-    # Calculate metrics
     mae = torch.mean(abs_error)
     mse = torch.mean(sq_error)
     rmse = torch.sqrt(mse)
+    # Ensure y_true absolute value is used for MAPE denominator
     mape = torch.mean(torch.div(abs_error, torch.abs(y_true) + epsilon)) * 100
 
-    return {'mae': mae.item(), 'mse': mse.item(), 'rmse': rmse.item(), 'mape': mape.item()}
-
+    # Detach and move to CPU before .item()
+    return {
+        'mae': mae.detach().cpu().item(),
+        'mse': mse.detach().cpu().item(),
+        'rmse': rmse.detach().cpu().item(),
+        'mape': mape.detach().cpu().item()
+    }
 def map_to_severity(values: torch.Tensor, boundaries: torch.Tensor) -> torch.Tensor:
     """
     Maps continuous values to discrete severity levels based on boundaries.
@@ -55,7 +58,7 @@ def map_to_severity(values: torch.Tensor, boundaries: torch.Tensor) -> torch.Ten
     """
 
     boundaries = boundaries.to(values.device)
-    severity_levels = torch.bucketize(values, boundaries)
+    severity_levels = torch.bucketize(values, boundaries, right=False)
     return severity_levels.long() # Ensure integer type
 
 def calculate_severity_accuracy(predictions: torch.Tensor,
