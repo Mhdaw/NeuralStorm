@@ -154,7 +154,7 @@ class MultiChannelTimesFM(nn.Module):
 
           # Pre-Model Check
           if torch.isnan(input_ts_i).any() or torch.isinf(input_ts_i).any():
-            print(f"!!! WARNING: NaN/Inf detected in input_ts_i for channel {i} BEFORE TimesFM !!!")
+            #print(f"!!! WARNING: NaN/Inf detected in input_ts_i for channel {i} BEFORE TimesFM !!!")
             # a NaN tensor of the expected shape
             dummy_output = torch.full((self.batch_size, self.config.num_layers, self.model_output_horizon, self.num_output_features),
                                       float('nan'), device=input_ts_i.device)
@@ -162,7 +162,7 @@ class MultiChannelTimesFM(nn.Module):
             h_patch = self.model_cfg.patch_len
             forecast_i = torch.full((self.batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=input_ts_i.device)
             nan_detected_in_any_channel = True
-            print(f"    --> Using dummy NaN forecast for channel {i}")
+            #print(f"    --> Using dummy NaN forecast for channel {i}")
           else:
             model_output_i = self.timesfm_models[i](
                 input_ts = input_ts_i,
@@ -170,19 +170,19 @@ class MultiChannelTimesFM(nn.Module):
                 freq=frequency
             )
             if torch.isnan(model_output_i).any() or torch.isinf(model_output_i).any():
-              print(f"!!! WARNING: NaN/Inf DETECTED in raw output of TimesFM channel {i} !!!")
+              #print(f"!!! WARNING: NaN/Inf DETECTED in raw output of TimesFM channel {i} !!!")
               model_output_i = torch.nan_to_num(model_output_i, nan=0.0, posinf=1e6, neginf=-1e6)
               nan_detected_in_any_channel = True
 
             forecast_i = model_output_i[:, -1, :, :]
 
             if torch.isnan(forecast_i).any() or torch.isinf(forecast_i).any():
-              print(f"!!! WARNING: NaN/Inf DETECTED in forecast_i (extracted) for channel {i} !!!")
+              #print(f"!!! WARNING: NaN/Inf DETECTED in forecast_i (extracted) for channel {i} !!!")
               forecast_i = torch.nan_to_num(forecast_i, nan=0.0, posinf=1e6, neginf=-1e6)
               nan_detected_in_any_channel = True
 
             if forecast_i.shape[1] != self.model_output_horizon:
-              print(f"Warning: Channel {i} forecast horizon ({forecast_i.shape[1]}) doesn't match expected ({self.model_output_horizon}). Check TimesFM config/output.")
+              #print(f"Warning: Channel {i} forecast horizon ({forecast_i.shape[1]}) doesn't match expected ({self.model_output_horizon}). Check TimesFM config/output.")
               if forecast_i.shape[1] > self.model_output_horizon:
                 forecast_i = forecast_i[:, :self.model_output_horizon, :]
               else:
@@ -206,17 +206,17 @@ class MultiChannelTimesFM(nn.Module):
         if self.temporal_processor is not None:
             temporal_features = batch.get('temporal_features')
             if temporal_features is None:
-                 print("!!! ERROR: Temporal processor enabled, but 'temporal_features' not found in batch !!!")
+                 #print("!!! ERROR: Temporal processor enabled, but 'temporal_features' not found in batch !!!")
                  return torch.full((self.batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=temporal_features.device)
             if not torch.all(torch.isfinite(temporal_features)):
-                 print(f"!!! WARNING: NaN/Inf detected in temporal_features BEFORE processor !!!")
+                 #print(f"!!! WARNING: NaN/Inf detected in temporal_features BEFORE processor !!!")
                  temporal_features = torch.nan_to_num(temporal_features, nan=0.0, posinf=1e6, neginf=-1e6)
                  nan_detected = True
 
             processed_temporal = self.temporal_processor(temporal_features) # Should output (B, D_temporal)
 
             if not torch.all(torch.isfinite(processed_temporal)):
-                 print(f"!!! WARNING: NaN/Inf detected in processed_temporal AFTER processor !!!")
+                 #print(f"!!! WARNING: NaN/Inf detected in processed_temporal AFTER processor !!!")
                  processed_temporal = torch.nan_to_num(processed_temporal, nan=0.0, posinf=1e6, neginf=-1e6)
                  nan_detected = True
 
@@ -224,22 +224,22 @@ class MultiChannelTimesFM(nn.Module):
         if self.event_processor is not None:
             event_features = batch.get('event_features')
             if event_features is None:
-                 print("Event processor enabled, but 'event_features' not found in batch!")
+                 #print("Event processor enabled, but 'event_features' not found in batch!")
                  return torch.full((self.batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=event_features.device)
             if not torch.all(torch.isfinite(event_features)):
-                 print(f"!!! WARNING: NaN/Inf detected in event_features BEFORE processor !!!")
+                 #print(f"!!! WARNING: NaN/Inf detected in event_features BEFORE processor !!!")
                  event_features = torch.nan_to_num(event_features, nan=0.0, posinf=1e6, neginf=-1e6)
                  nan_detected = True
 
             processed_events = self.event_processor(event_features) # Should output (B, D_event)
 
             if not torch.all(torch.isfinite(processed_events)):
-                 print(f"!!! WARNING: NaN/Inf detected in processed_events AFTER processor !!!")
+                 #print(f"!!! WARNING: NaN/Inf detected in processed_events AFTER processor !!!")
                  processed_events = torch.nan_to_num(processed_events, nan=0.0, posinf=1e6, neginf=-1e6)
                  nan_detected = True
 
         if nan_detected:
-            print("    --> NaNs/Infs were handled in auxiliary feature processing.")
+            #print("    --> NaNs/Infs were handled in auxiliary feature processing.")
 
         return processed_temporal, processed_events
 
@@ -251,7 +251,7 @@ class MultiChannelTimesFM(nn.Module):
         batch_size = input_ts.shape[0]
         self.batch_size = batch_size # easy fix
         if torch.isnan(input_ts).any() or torch.isinf(input_ts).any():
-          print("!!! FATAL: NaN/Inf found in input_ts BATCH INPUT !!!")
+          #print("!!! FATAL: NaN/Inf found in input_ts BATCH INPUT !!!")
           return torch.full((batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=input_ts.device) # Return NaNs immediately
 
         input_ts_channels = input_ts.split(1, dim=-1)
@@ -284,7 +284,7 @@ class MultiChannelTimesFM(nn.Module):
 
         batch_size = input_ts.shape[0]
         if torch.isnan(input_ts).any() or torch.isinf(input_ts).any():
-             print("!!! FATAL: NaN/Inf found in input_ts BATCH INPUT !!!")
+             #print("!!! FATAL: NaN/Inf found in input_ts BATCH INPUT !!!")
              return torch.full((batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=input_ts.device) # Return NaNs immediately
 
         input_ts_channels = input_ts.split(1, dim=-1)
@@ -311,13 +311,13 @@ class MultiChannelTimesFM(nn.Module):
         try:
             mlp_input = torch.cat(features_to_concat, dim=-1)
         except Exception as e:
-            print(f"!!! ERROR during torch.cat for MLP input: {e} !!!")
-            print("Shapes of features being concatenated:")
-            for i, feat in enumerate(features_to_concat):
-                print(f"  Feature {i}: {feat.shape}")
+            #print(f"!!! ERROR during torch.cat for MLP input: {e} !!!")
+            #print("Shapes of features being concatenated:")
+            #for i, feat in enumerate(features_to_concat):
+                #print(f"  Feature {i}: {feat.shape}")
             return torch.full((batch_size, self.model_output_horizon, self.num_output_features), float('nan'), device=input_ts.device)
         if torch.isnan(mlp_input).any() or torch.isinf(mlp_input).any():
-             print(f"!!! WARNING: NaN/Inf DETECTED in mlp_input BEFORE combiner MLP !!!")
+             #print(f"!!! WARNING: NaN/Inf DETECTED in mlp_input BEFORE combiner MLP !!!")
              mlp_input = torch.nan_to_num(mlp_input, nan=0.0, posinf=1e6, neginf=-1e6)
 
         final_forecast = self.combiner_mlp(mlp_input)
